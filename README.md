@@ -122,7 +122,7 @@ Note also that if you only want to scale the app (keeping the same version) you 
 
 ### With health checks
 
-To explore the default deployment behaviour of DC/OS services with health checkes, we're using [base-health.json](default/base-health.json).
+To explore the default deployment behaviour of DC/OS services with health checks, we're using [base-health.json](default/base-health.json).
 This launches a service with the ID `/zdd/base-health` with 4 instances of `simpleservice`, with health checking, and initially in the version `0.9`:
 
     $ dcos marathon app add default/base-health.json
@@ -250,7 +250,7 @@ To use a `readinessChecks` use something like shown in [base-ready.json](default
       }
     ]
 
-Note that `readinessChecks` result is a global property of the service (not on a task level). Note also that it's orthogonal to the `healthChecks`, that is, `dcos marathon app show /zdd/base-ready | jq '.tasks[].healthCheckResults[]'` will return an empty result and also the DC/OS UI will only show the tasks `Running` and now `Healthy`.
+Note that `readinessChecks` result is a global property of the service (not on a task level). Note also that it's orthogonal to the `healthChecks`, that is, `dcos marathon app show /zdd/base-ready | jq '.tasks[].healthCheckResults[]'` will return an empty result and also the DC/OS UI will only show the tasks `Running` and not `Healthy`.
 
 Recommendation: use this property only if you really need fine-grained control over the deployment process, for example, in the context of a framework scheduler.
 
@@ -467,7 +467,7 @@ With this we conclude the canary deployment section and if you want to learn mor
 
 ## Blue-Green deployment
 
-Another popular form of ZDD supported by DC/OS is the [Blue-Green deployment](http://martinfowler.com/bliki/BlueGreenDeployment.html). Here, the idea is basically to have two versions of your service (unsurprisingly called `blue` and `green`): let's say that `blue` is the live one, serving production traffic and `green` is the new version to be rolled out. Once all instances of `green` are health, a load balancer is reconfigured to cut over from `blue` to `green` and if necessary (to roll back) one can do the same in the reverse direction. 
+Another popular form of ZDD supported by DC/OS is the [Blue-Green deployment](http://martinfowler.com/bliki/BlueGreenDeployment.html). Here, the idea is basically to have two versions of your service (unsurprisingly called `blue` and `green`): let's say that `blue` is the live one, serving production traffic and `green` is the new version to be rolled out. Once all instances of `green` are healthy, a load balancer is reconfigured to cut over from `blue` to `green` and if necessary (to roll back) one can do the same in the reverse direction. 
 
 Essentially, we want the following. We start out with `blue` being active: 
 
@@ -585,6 +585,32 @@ In above HAProxy screen shot we can see the `blue` frontend `zdd_blue_10080` for
 
     ;; ADDITIONAL SECTION:
     blue-zdd-xu4a3-s2.marathon.mesos. 60 IN	A	10.0.3.192
+    blue-zdd-8sqqy-s2.marathon.mesos. 60 IN	A	10.0.3.192
+    blue-zdd-rrf4y-s2.marathon.mesos. 60 IN	A	10.0.3.192
+    blue-zdd-4hzbx-s2.marathon.mesos. 60 IN	A	10.0.3.192
+
+    ;; Query time: 1 msec
+    ;; SERVER: 198.51.100.1#53(198.51.100.1)
+    ;; WHEN: Sat Oct 15 09:15:28 UTC 2016
+    ;; MSG SIZE  rcvd: 263
+
+We're now in the position that we can access version `0.9` of `simpleservice` from outside the cluster:
+
+    $ curl http://52.25.126.14:10080/endpoint0
+    {"host": "52.25.126.14:10080", "version": "0.9", "result": "all is well"}
+
+Next, we deploy version `1.0` of `simpleservice`, using [green.json](blue-green/green.json). Note that nothing has changed so far in HAProxy (check it out, you'll still see the `blue` frontend and backend), however, we have `green` now available within the cluster:
+
+    core@ip-10-0-6-211 ~ $ dig _green-zdd._tcp.marathon.mesos SRV
+
+    ; <<>> DiG 9.10.2-P4 <<>> _green-zdd._tcp.marathon.mesos SRV
+    ;; global options: +cmd
+    ;; Got answer:
+    ;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 32879
+    ;; flags: qr aa rd ra; QUERY: 1, ANSWER: 4, AUTHORITY: 0, ADDITIONAL: 4
+
+    ;; QUESTION SECTION:
+    ;_green-zdd._tcp.marathon.mesos.	IN	SRV
     blue-zdd-8sqqy-s2.marathon.mesos. 60 IN	A	10.0.3.192
     blue-zdd-rrf4y-s2.marathon.mesos. 60 IN	A	10.0.3.192
     blue-zdd-4hzbx-s2.marathon.mesos. 60 IN	A	10.0.3.192
